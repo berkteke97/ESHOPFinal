@@ -125,8 +125,6 @@ public class AuthService {
 
     public ResponseEntity<?> logoutUser(HttpServletRequest request) {
         try {
-
-
             SecurityContextHolder.clearContext();
             String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
             if (authHeader != null && authHeader.startsWith("Bearer ")) {

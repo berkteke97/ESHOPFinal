@@ -21,6 +21,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/cart")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200", allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.DELETE, RequestMethod.PUT})
+
 public class CartController {
     private final CartService cartService;
     private final CustomerRepository customerRepository;
@@ -32,6 +34,14 @@ public class CartController {
         Cart updatedCart = cartService.addProductToCart(customer, addToCartRequest);
         return ResponseEntity.ok(updatedCart);
     }
+
+    @DeleteMapping("/remove/{productId}")
+    public ResponseEntity<Cart> removeFromCart(@PathVariable Long productId) {
+        Customer customer = getAuthenticatedCustomer();
+        Cart updatedCart = cartService.removeItemFromCart(customer, productId);
+        return ResponseEntity.ok(updatedCart);
+    }
+
 
     @GetMapping
     public ResponseEntity<CartResponse> getCart() {
