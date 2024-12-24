@@ -9,11 +9,15 @@ import com.example.teke.ESHOP.repository.CustomerRepository;
 import com.example.teke.ESHOP.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.example.teke.ESHOP.service.FPGrowthService;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -25,16 +29,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProductController {
 
-    private  final ProductService  productService;
+    private final ProductService productService;
 
 
-   private final ContentBasedRecommendationService contentBasedRecommendationService;
-   private final CollaborativeRecommendationService collaborativeRecommendationService;
-   private final CustomerService customerService;
-   private final UserInteractionService userInteractionService;
-   private final CustomerRepository customerRepository;
-
-
+    private final ContentBasedRecommendationService contentBasedRecommendationService;
+    private final CollaborativeRecommendationService collaborativeRecommendationService;
+    private final CustomerService customerService;
+    private final UserInteractionService userInteractionService;
+    private final CustomerRepository customerRepository;
+    private final FPGrowthService fpGrowthService;
 
 
     @PostMapping("/addProduct")
@@ -64,14 +67,14 @@ public class ProductController {
     public Product updateProduct
             (
                     @RequestParam("price") BigDecimal price,
-                     @RequestParam("categoryName") String categoryName,
-                   @RequestParam("brand") String brand,
-                  @RequestParam("stock") int stock,
-                 @RequestParam("detail") String detail,
-                @RequestParam("barcode") String barcode,
-                @RequestParam(value = "imageFile", required = false) MultipartFile imageFile,
-             @PathVariable("id") UUID id
-             ) throws Exception{
+                    @RequestParam("categoryName") String categoryName,
+                    @RequestParam("brand") String brand,
+                    @RequestParam("stock") int stock,
+                    @RequestParam("detail") String detail,
+                    @RequestParam("barcode") String barcode,
+                    @RequestParam(value = "imageFile", required = false) MultipartFile imageFile,
+                    @PathVariable("id") UUID id
+            ) throws Exception {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
@@ -89,43 +92,23 @@ public class ProductController {
         productDTO.setDetail(detail);
         productDTO.setBarcode(barcode);
         productDTO.setImageFile(imageFile);
-        return productService.updateProduct(id,productDTO);
+        return productService.updateProduct(id, productDTO);
     }
 
     @GetMapping
-    public Iterable<Product> getAllProducts (){
+    public Iterable<Product> getAllProducts() {
         return productService.getAllProducts();
     }
-    
+
     @GetMapping("products/{categoryName}")
     public Iterable<Product> getProductsByCategory(@PathVariable("categoryName") String categoryName) {
         return productService.getProductsByCategory(categoryName);
     }
 
-
     @DeleteMapping("/deleteProduct/{barcode}")
-    public Product deleteByBarcode(@PathVariable("barcode") String barcode){
+    public Product deleteByBarcode(@PathVariable("barcode") String barcode) {
         return productService.deleteByBarcode(barcode);
     }
-
-    @PostMapping("/sellProduct")
-    public Product sellProduct(String barcode, int count){
-        return productService.sellProduct(barcode, count);
-    }
-
-    @GetMapping("/{id}")
-    public Product getProductById(@PathVariable UUID id) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String currentCustomerUsername = authentication.getName();
-        Customer customer = customerService.getCustomerByUsername(currentCustomerUsername).orElseThrow();
-        Product product = productService.getProductById(id);
-
-        // Track the interaction using the service
-        userInteractionService.trackInteraction(customer, product);
-
-        return product;
-    }
-
 
 
 //
@@ -155,6 +138,23 @@ public class ProductController {
 //        return collaborativeRecommendationService.getCollaborativeRecommendation(product,customer);
 //    }
 
+    @PostMapping("/sellProduct")
+    public Product sellProduct(String barcode, int count) {
+        return productService.sellProduct(barcode, count);
+    }
+
+    @GetMapping("/{id}")
+    public Product getProductById(@PathVariable UUID id) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String currentCustomerUsername = authentication.getName();
+        Customer customer = customerService.getCustomerByUsername(currentCustomerUsername).orElseThrow();
+        Product product = productService.getProductById(id);
+
+        // Track the interaction using the service
+        userInteractionService.trackInteraction(customer, product);
+
+        return product;
+    }
 
     @GetMapping("/{productId}/recommendations")
     public List<Product> getCombinedRecommendations(@PathVariable UUID productId) {
@@ -163,7 +163,7 @@ public class ProductController {
 
         Customer customer = customerService.getCustomerByUsername(currentCustomerUsername).orElseThrow();
         Product product = productService.getProductById(productId);
-        
+
         List<Product> contentBasedRecommendations = contentBasedRecommendationService.getContentBasedRecommendation(product);
         List<Product> collaborativeRecommendations = collaborativeRecommendationService.getCollaborativeRecommendation(product, customer);
 
@@ -177,7 +177,16 @@ public class ProductController {
                 .collect(Collectors.toList());
     }
 
-
+    @PostMapping("/{productId}/fpGrowthRecommendations")
+    public ResponseEntity<List<Product>> getFPGrowthRecommendations(@PathVariable UUID productId, @RequestBody List<int[]> transactions, @RequestParam double minSupport) {
+        try {
+            Product product = productService.getProductById(productId);
+            List<Product> recommendations = fpGrowthService.getRecommendations(product, transactions, minSupport);
+            return ResponseEntity.ok(recommendations);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
 
 
 }
