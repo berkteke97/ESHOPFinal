@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.parameters.P;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.teke.ESHOP.service.FPGrowthService;
@@ -156,26 +157,36 @@ public class ProductController {
         return product;
     }
 
-    @GetMapping("/{productId}/recommendations")
-    public List<Product> getCombinedRecommendations(@PathVariable UUID productId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String currentCustomerUsername = authentication.getName();
+    @PostMapping("/{productId}/recommendations")
+    public ResponseEntity<List<Product>> getCombinedRecommendations(
+            @PathVariable UUID productId,
+            @RequestBody List<int[]> transactions,
+            @RequestParam double minSupport) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String currentCustomerUsername = authentication.getName();
+            Customer customer = customerService.getCustomerByUsername(currentCustomerUsername).orElseThrow();
 
-        Customer customer = customerService.getCustomerByUsername(currentCustomerUsername).orElseThrow();
-        Product product = productService.getProductById(productId);
+            Product product = productService.getProductById(productId);
 
-        List<Product> contentBasedRecommendations = contentBasedRecommendationService.getContentBasedRecommendation(product);
-        List<Product> collaborativeRecommendations = collaborativeRecommendationService.getCollaborativeRecommendation(product, customer);
+            List<Product> contentBasedRecommendations = contentBasedRecommendationService.getContentBasedRecommendation(product);
+            List<Product> collaborativeRecommendations = collaborativeRecommendationService.getCollaborativeRecommendation(product, customer);
+            List<Product> fpGrowthRecommendations = fpGrowthService.getRecommendations(product, transactions, minSupport);
 
-        // Combine both recommendations and remove duplicates
-        Set<Product> combinedRecommendations = new HashSet<>(contentBasedRecommendations);
-        combinedRecommendations.addAll(collaborativeRecommendations);
+            Set<Product> combinedRecommendations = new HashSet<>(contentBasedRecommendations);
+            combinedRecommendations.addAll(collaborativeRecommendations);
+            combinedRecommendations.addAll(fpGrowthRecommendations);
 
-        return new ArrayList<>(combinedRecommendations).stream()
-                .filter(recommendedProduct -> !recommendedProduct.getId().equals(productId))
-                .limit(10)  // Limit to 10 recommendations
-                .collect(Collectors.toList());
+            return ResponseEntity.ok(new ArrayList<>(combinedRecommendations).stream()
+                    .filter(recommendedProduct -> !recommendedProduct.getId().equals(productId))
+                    .limit(10)  // Önerileri 10 ile sınırla
+                    .collect(Collectors.toList()));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
     }
+
+
 
     @PostMapping("/{productId}/fpGrowthRecommendations")
     public ResponseEntity<List<Product>> getFPGrowthRecommendations(@PathVariable UUID productId, @RequestBody List<int[]> transactions, @RequestParam double minSupport) {

@@ -2,7 +2,6 @@ package com.example.teke.ESHOP.service;
 
 import ca.pfv.spmf.algorithms.frequentpatterns.fpgrowth.AlgoFPGrowth;
 import com.example.teke.ESHOP.model.Product;
-import com.example.teke.ESHOP.service.ProductService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -53,11 +52,14 @@ public class FPGrowthService {
             String line;
             while ((line = br.readLine()) != null) {
                 // Satırı işle ve öğeleri listeye ekle
-                if (!line.trim().isEmpty()) {
+                if (!line.trim().isEmpty() && !line.startsWith("#SUP:")) {  // #SUP: satırlarını atla
                     List<Integer> itemset = Arrays.stream(line.split(" "))
+                            .filter(token -> token.matches("\\d+"))  // Sadece sayısal değerleri işleyin
                             .map(Integer::parseInt)
                             .collect(Collectors.toList());
-                    frequentItemsets.add(itemset);
+                    if (!itemset.isEmpty()) {
+                        frequentItemsets.add(itemset);
+                    }
                 }
             }
         }
